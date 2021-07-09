@@ -1,0 +1,5 @@
+*.txt
+LIS_old.py
+.idea/
+__pycache__
+example.py
