@@ -1,8 +1,8 @@
 This is a simple module to interface with the [NucleoLIS](https://psychesystems.com/enterprise-laboratory-information-software/nucleolis-molecular-lab-testing-software/) API.
 
 The module provides 3 functions: login(), get_all(), and get_single(). The functions have the following methods:
-get_all | get_single
--------- | --------
+get_all() | get_single()
+:------: | :------:
 cases | case
 patients | patient
 specimens | specimen
