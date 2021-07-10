@@ -1,4 +1,4 @@
-This is a simple module to interface with the [NucleoLIS](https://psychesystems.com/enterprise-laboratory-information-software/nucleolis-molecular-lab-testing-software/) API.
+This is a simple python module to interface with the [NucleoLIS](https://psychesystems.com/enterprise-laboratory-information-software/nucleolis-molecular-lab-testing-software/) API.
 
 The module provides 3 functions: login(), get_all(), and get_single(). The functions have the following methods:
 get_all() | get_single()
@@ -18,11 +18,15 @@ Example usage:
 ```
 import LIS
 
-# First you must login to the API. The password should be stored in a plain text file.
+# First you must login to the API. Be sure to include '/api/' at
+# the end of your url and the password should be stored in a plain
+# text file.
 LIS.login(url="https://your.server.com/api/",
           username='user', pass_file='api_pass.txt')
 
-# The login will provide a cookie which is stored within the module environment. The cookie is only valid for 15 mins, however a new cookie provided with each call and is updated automatically within the module. This creates a 15 min timeout period that will require you to login again if you haven't made any API calls for 15 mins
+# Your login will be valid for 15 minutes. The 15 minute window will
+# be reset with each API call, however if you do not call the API
+# for 15 minutes, you will need to login again.
 
 
 # Fetch some data. A pandas dataframe will be returned 
