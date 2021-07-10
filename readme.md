@@ -15,7 +15,7 @@ The get_all() function retrieves summary data of all the records within any of t
 More details can be found in the 'Backbone NucleoLIS' documentation pdf in this repository.
 
 Example usage:
-'''
+```
 import LIS
 
 # First you must login to the API. The password should be stored in a plain text file.
@@ -33,4 +33,4 @@ filtered_cases = LIS.get_all('cases', filter_expression="Patient_Name='Last, Fir
 
 # When retrieving a case, a list will be returned containing a dataframe and a series of metadata. Other retrieval methods will simply return a dataframe
 single_case = LIS.get_single('case', case_number='CLIN2020-000002')
-'''
+```
