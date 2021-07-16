@@ -43,6 +43,11 @@ def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'phy
             received_date_from='*', received_date_to='*',
             specimen_status_steps='*', specimen_sources='*',
             order_status_steps='', order_codes=''):
+
+    # Make sure user has logged in
+    if 'user_id' not in globals():
+        return print('You have not logged in.')
+
     # Set uri for desired method
     methods = {'heartbeat': 'N/GetHeartbeat',
                'patients': 'N/GetPatients',
@@ -89,6 +94,11 @@ def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'phy
 def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
                patient_id=None, case_number=None, specimen_id=None,
                test_order_id=None, physician_code=None):
+
+    # Make sure user has logged in
+    if 'user_id' not in globals():
+        return print('You have not logged in.')
+
     # Set uri for desired method
     methods = {'patient': 'N/GetPatient',
                'case': 'N/GetCase',
