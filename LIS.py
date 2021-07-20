@@ -24,6 +24,9 @@ def login(url, username, pass_file='api_pass.txt'):
     response = requests.post(url + uri, headers=headers,
                              data='username='+username+'&password='+password)
 
+    # Save response for debugging
+    get_response(response)
+
     # Check response
     root = ET.fromstring(response.text)
     if root.text == 'Success':
@@ -74,6 +77,9 @@ def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'phy
 
     # Call API
     response = requests.get(url + uri, headers={'Cookie': cookie}, params=params)
+
+    # Save response for debugging
+    get_response(response)
 
     # Parse errors
     error = parse_errors(response)
@@ -126,6 +132,9 @@ def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
     # Call API
     response = requests.get(url + uri, headers={'Cookie': cookie}, params=params)
 
+    # Save response for debugging
+    get_response(response)
+
     # Parse errors
     error = parse_errors(response)
     if error: return
@@ -156,15 +165,23 @@ def set_status(object_ids, status_set='', status_advance='false'):
     # Call API
     response = requests.get(url + 'N/SetStatusSteps', headers={'Cookie': cookie}, params=params)
 
+    # Save response for debugging
+    get_response(response)
+
     # Parse errors
     error = parse_errors(response)
     if error: return
 
-    # Return refreshed cookie
+    # Save refreshed cookie
     get_cookie(response)
 
     # Convert response to df
-    return xml_to_df(response.text)
+    df = xml_to_df(response.text)
+
+    if df is None:
+        print('No updates performed. Invalid object ID')
+
+    return df
 
 # endregion
 
@@ -182,8 +199,11 @@ def set_url(link):
     global url
     url = link
 
+def get_response(http_response):
+    global response
+    response = http_response
+
 def parse_errors(response):
-    # Parse errors
     if response.status_code != 200:
         print('HTTP error: ' + str(response.status_code) + ': ' + response.reason)
         return True
@@ -194,12 +214,21 @@ def parse_errors(response):
 
 def xml_to_df(xml_string):
     xml_table = ET.fromstring(xml_string)
+
+    if xml_table.text == 'No data':
+        print('No data returned')
+        return
+
     rows = list()
     for patient in xml_table:
         patient_dict = dict()
         for element in patient:
             patient_dict[element.tag] = element.text
         rows.append(patient_dict)
-    return pd.DataFrame(rows)
+    df = pd.DataFrame(rows)
+
+    if df.empty:
+        print('No data returned')
+    return df
 
 # endregion
