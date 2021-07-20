@@ -76,13 +76,8 @@ def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'phy
     response = requests.get(url + uri, headers={'Cookie': cookie}, params=params)
 
     # Parse errors
-    if response.status_code != 200:
-        print('HTTP error: ' + str(response.status_code) + ': ' + response.reason)
-        return
-    if re.search("^<ErrorResponse>", response.text) is not None:
-        error_message = re.findall("(?<=<Message>).*(?=</Message)", response.text)
-        print(error_message[0])
-        return
+    error = parse_errors(response)
+    if error: return
 
     # Return refreshed cookie
     get_cookie(response)
@@ -132,13 +127,8 @@ def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
     response = requests.get(url + uri, headers={'Cookie': cookie}, params=params)
 
     # Parse errors
-    if response.status_code != 200:
-        print('HTTP error: ' + str(response.status_code) + ': ' + response.reason)
-        return
-    if re.search("^<ErrorResponse>", response.text) is not None:
-        error_message = re.findall("(?<=<Message>).*(?=</Message)", response.text)
-        print(error_message[0])
-        return
+    error = parse_errors(response)
+    if error: return
 
     # Return refreshed cookie
     get_cookie(response)
