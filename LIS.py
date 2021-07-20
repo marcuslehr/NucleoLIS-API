@@ -120,7 +120,7 @@ def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
            'physician': physician_code}
     ID = IDs.get(method)
     if type(ID) is None:
-        print('Must supply the appropriate ID for the selected method')
+        print('You must supply the appropriate ID for the selected method')
         return
 
     # Set get parameters
@@ -146,16 +146,35 @@ def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
     # Convert response to df
     df = xml_to_df(response.text)
 
-    if method == 'case':
-        # Subset columns with non-unique values
-        data = df[[col for col in df.columns if len(df[col].unique()) > 1]]
+    return df
 
-        # Subset columns with unique values
-        metadata = df[[col for col in df.columns if len(df[col].unique()) == 1]].iloc[0,]
+def set_status(object_ids, status_set='', status_advance='false'):
 
-        return dict(data=data, metadata=metadata)
-    else:
-        return df
+    # Make sure user has logged in
+    if 'user_id' not in globals():
+        return print('You have not logged in.')
+
+    # Paste IDs
+    if isinstance(object_ids, (list, set, pd.core.series.Series)):
+        object_ids = '|'.join(object_ids)
+
+    # Set get parameters
+    params = dict(object_ids=object_ids, status_set=status_set,
+                  status_advance=status_advance,
+                  user_id=user_id, return_format='0')
+
+    # Call API
+    response = requests.get(url + 'N/SetStatusSteps', headers={'Cookie': cookie}, params=params)
+
+    # Parse errors
+    error = parse_errors(response)
+    if error: return
+
+    # Return refreshed cookie
+    get_cookie(response)
+
+    # Convert response to df
+    return xml_to_df(response.text)
 
 # endregion
 
@@ -165,11 +184,23 @@ def get_cookie(response):
     global cookie
     cookie = re.findall("(?<=Cookie ).*?(?=\\s)", str(response.cookies))[0]
 
-
 def get_id(response):
     global user_id
     user_id = re.findall("(?<=username=)\\d*?(?=&|$)", str(response.cookies))[0]
 
+def set_url(link):
+    global url
+    url = link
+
+def parse_errors(response):
+    # Parse errors
+    if response.status_code != 200:
+        print('HTTP error: ' + str(response.status_code) + ': ' + response.reason)
+        return True
+    if re.search("^<ErrorResponse>", response.text) is not None:
+        error_message = re.findall("(?<=<Message>).*(?=</Message)", response.text)
+        print(error_message[0])
+        return True
 
 def xml_to_df(xml_string):
     xml_table = ET.fromstring(xml_string)
@@ -180,9 +211,5 @@ def xml_to_df(xml_string):
             patient_dict[element.tag] = element.text
         rows.append(patient_dict)
     return pd.DataFrame(rows)
-
-def set_url(link):
-    global url
-    url = link
 
 # endregion

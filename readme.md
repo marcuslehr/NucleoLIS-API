@@ -1,6 +1,8 @@
 This is a simple python module to interface with the [NucleoLIS](https://psychesystems.com/enterprise-laboratory-information-software/nucleolis-molecular-lab-testing-software/) API.
 
-The module provides 3 functions: login(), get_all(), and get_single(). The functions have the following methods:
+The module provides the following functions: login(), get_all(), get_single(), and set_status(). 
+
+The get_all() function retrieves summary data of all records while the get_single() function can be used to retrieve detailed information about a particular record. The functions have the following methods:
 get_all() | get_single()
 :------: | :------:
 cases | case
@@ -10,9 +12,8 @@ tests | test
 physicians | physician
 heartbeat |
 
-The get_all() function retrieves summary data of all the records within any of the various data types while the get_single function can be used to retrieve detailed information about a particular record.
-
-More details can be found in the 'Backbone NucleoLIS' documentation pdf in this repository.
+The other functions are login(), which must be run before the other functions, and set_status(), which updates '_StatusStep' fields.
+For more information, see the 'Backbone NucleoLIS' documentation pdf in this repository.
 
 Example usage:
 ```
@@ -35,6 +36,6 @@ cases = LIS.get_all('cases')
 # You can also apply filters to the call
 filtered_cases = LIS.get_all('cases', filter_expression="Patient_Name='Last, First'")
 
-# When retrieving a case, a list will be returned containing a dataframe and a series of metadata. Other retrieval methods will simply return a dataframe
+# Pull details on a single case. This will also be returned as a dataframe
 single_case = LIS.get_single('case', case_number='CLIN2020-000002')
 ```
