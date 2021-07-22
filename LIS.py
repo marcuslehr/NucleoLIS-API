@@ -33,7 +33,8 @@ def login(url, username, pass_file='api_pass.txt'):
         print('Login success')
         # Save cookie and ID to module env
         get_cookie(response)
-        get_id(response)
+        global user_id
+        user_id = re.findall("(?<=username=)\\d*?(?=&|$)", str(response.cookies))[0]
     else:
         print('Login failed')
 
@@ -183,19 +184,52 @@ def set_status(object_ids, status_set='', status_advance='false'):
 
     return df
 
+def generic_call(endpoint='GetHeartbeat', **params):
+
+    # Make sure user has logged in
+    if 'user_id' not in globals():
+        return print('You have not logged in.')
+
+    # Coerce endpoint formatting
+    endpoint = re.sub('^/', '', endpoint)
+    if re.search('^api/', endpoint) is not None:
+        endpoint = re.sub('^api/', '', endpoint)
+    if re.search('^N/', endpoint) is None:
+        endpoint = re.sub('^', 'N/', endpoint)
+
+    # Coerce static param args
+    params['user_id'] = user_id
+    params['return_format'] = '0'
+
+    # Call API
+    response = requests.get(url + endpoint, headers={'Cookie': cookie}, params=params)
+
+    # Parse errors
+    error = parse_errors(response)
+
+    # Return refreshed cookie
+    get_cookie(response)
+
+    return response
+
 # endregion
 
 
 # region Internal module functions
 def get_cookie(response):
     global cookie
-    cookie = re.findall("(?<=Cookie ).*?(?=\\s)", str(response.cookies))[0]
-
-def get_id(response):
-    global user_id
-    user_id = re.findall("(?<=username=)\\d*?(?=&|$)", str(response.cookies))[0]
+    match = re.search("(?<=Cookie ).*?(?=\\s)", str(response.cookies))
+    if match is not None:
+        cookie = match.group()
 
 def set_url(link):
+    if re.search('/api/$', link) is None:
+        if re.search('/api$',link) is not None:
+            link = re.sub('/api$','/api/',link)
+        elif re.search('/$',link) is not None:
+            link = re.sub('/$','/api/',link)
+        else:
+            link = re.sub('$','/api/',link)
     global url
     url = link
 
@@ -204,27 +238,35 @@ def get_response(http_response):
     response = http_response
 
 def parse_errors(response):
+    error_count = 0
     if response.status_code != 200:
         print('HTTP error: ' + str(response.status_code) + ': ' + response.reason)
-        return True
-    if re.search("^<ErrorResponse>", response.text) is not None:
-        error_message = re.findall("(?<=<Message>).*(?=</Message)", response.text)
+        error_count += 1
+    if re.search("^<Error", response.text) is not None:
+        error_message = re.findall("(?<=<Message>).*(?=</Message>)", response.text)
+        message_detail = re.search("(?<=<MessageDetail>).*(?=</MessageDetail>)", response.text)
         print(error_message[0])
+        print(message_detail.group())
+        error_count += 1
+
+    if error_count > 0:
         return True
+    else:
+        return False
 
 def xml_to_df(xml_string):
-    xml_table = ET.fromstring(xml_string)
+    root = ET.fromstring(xml_string)
 
-    if xml_table.text == 'No data':
+    if root.text == 'No data':
         print('No data returned')
         return
 
     rows = list()
-    for patient in xml_table:
-        patient_dict = dict()
-        for element in patient:
-            patient_dict[element.tag] = element.text
-        rows.append(patient_dict)
+    for row in root:
+        row_dict = dict()
+        for column in row:
+            row_dict[column.tag] = column.text
+        rows.append(row_dict)
     df = pd.DataFrame(rows)
 
     if df.empty:
