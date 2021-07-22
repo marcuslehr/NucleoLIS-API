@@ -9,10 +9,6 @@ def login(url, username, pass_file='api_pass.txt'):
     # Save url to module env
     set_url(url)
 
-    # Set metadata
-    uri = "authenticate/logon"
-    headers = {'Content-Type': 'application/x-www-form-urlencoded'}
-
     # Retrieve password
     try:
         with open(pass_file, 'r') as f:
@@ -20,26 +16,30 @@ def login(url, username, pass_file='api_pass.txt'):
     except FileNotFoundError:
         password = input('Enter your password: ')
 
-    # Call API
-    response = requests.post(url + uri, headers=headers,
-                             data='username='+username+'&password='+password)
+    # Use global variable to save response to module env for debugging
+    global response
 
-    # Save response for debugging
-    get_response(response)
+    # Call API
+    response = requests.post(url + "authenticate/logon",
+                             headers={'Content-Type': 'application/x-www-form-urlencoded'},
+                             data='username='+username+'&password='+password)
 
     # Check response
     root = ET.fromstring(response.text)
     if root.text == 'Success':
         print('Login success')
-        # Save cookie and ID to module env
-        get_cookie(response)
+
+        # Save user ID to module env
         global user_id
         user_id = re.findall("(?<=username=)\\d*?(?=&|$)", str(response.cookies))[0]
+
+        # Save cookie to module env
+        get_cookie(response)
     else:
         print('Login failed')
 
 
-def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'physicians'],
+def get_all(method=['cases', 'patients', 'specimens', 'tests', 'physicians'],
             filter_expression="", activesOnly='false',
             last_name='*', first_name='*',
             case_number='*', order_date_from='*', order_date_to='*',
@@ -47,10 +47,6 @@ def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'phy
             received_date_from='*', received_date_to='*',
             specimen_status_steps='*', specimen_sources='*',
             order_status_steps='', order_codes=''):
-
-    # Make sure user has logged in
-    if 'user_id' not in globals():
-        return print('You have not logged in.')
 
     # Set uri for desired method
     methods = {'heartbeat': 'N/GetHeartbeat',
@@ -68,7 +64,6 @@ def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'phy
 
     # Set get parameters
     params = dict(filter_expression=filter_expression, activesOnly=activesOnly,
-                  user_id=user_id, return_format='0',
                   last_name=last_name, first_name=first_name,
                   case_number=case_number, order_date_from=order_date_from, order_date_to=order_date_to,
                   submitting_physicians=submitting_physicians, submitting_groups=submitting_groups,
@@ -77,17 +72,7 @@ def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'phy
                   order_status_steps=order_status_steps, order_codes=order_codes)
 
     # Call API
-    response = requests.get(url + uri, headers={'Cookie': cookie}, params=params)
-
-    # Save response for debugging
-    get_response(response)
-
-    # Parse errors
-    error = parse_errors(response)
-    if error: return
-
-    # Return refreshed cookie
-    get_cookie(response)
+    response = api_call(uri, **params)
 
     # Convert response to df
     return xml_to_df(response.text)
@@ -96,10 +81,6 @@ def get_all(method=['cases', 'heartbeat', 'patients', 'specimens', 'tests', 'phy
 def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
                patient_id=None, case_number=None, specimen_id=None,
                test_order_id=None, physician_code=None):
-
-    # Make sure user has logged in
-    if 'user_id' not in globals():
-        return print('You have not logged in.')
 
     # Set uri for desired method
     methods = {'patient': 'N/GetPatient',
@@ -127,32 +108,15 @@ def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
 
     # Set get parameters
     params = dict(patient_id=patient_id, case_number=case_number, specimen_id=specimen_id,
-                  test_order_id=test_order_id, physician_code=physician_code,
-                  user_id=user_id, return_format='0')
+                  test_order_id=test_order_id, physician_code=physician_code)
 
     # Call API
-    response = requests.get(url + uri, headers={'Cookie': cookie}, params=params)
-
-    # Save response for debugging
-    get_response(response)
-
-    # Parse errors
-    error = parse_errors(response)
-    if error: return
-
-    # Return refreshed cookie
-    get_cookie(response)
+    response = api_call(uri, **params)
 
     # Convert response to df
-    df = xml_to_df(response.text)
-
-    return df
+    return xml_to_df(response.text)
 
 def set_status(object_ids, status_set='', status_advance='false'):
-
-    # Make sure user has logged in
-    if 'user_id' not in globals():
-        return print('You have not logged in.')
 
     # Paste IDs
     if isinstance(object_ids, (list, set, pd.core.series.Series)):
@@ -160,21 +124,10 @@ def set_status(object_ids, status_set='', status_advance='false'):
 
     # Set get parameters
     params = dict(object_ids=object_ids, status_set=status_set,
-                  status_advance=status_advance,
-                  user_id=user_id, return_format='0')
+                  status_advance=status_advance)
 
     # Call API
-    response = requests.get(url + 'N/SetStatusSteps', headers={'Cookie': cookie}, params=params)
-
-    # Save response for debugging
-    get_response(response)
-
-    # Parse errors
-    error = parse_errors(response)
-    if error: return
-
-    # Save refreshed cookie
-    get_cookie(response)
+    response = api_call('N/SetStatusSteps', **params)
 
     # Convert response to df
     df = xml_to_df(response.text)
@@ -184,7 +137,7 @@ def set_status(object_ids, status_set='', status_advance='false'):
 
     return df
 
-def generic_call(endpoint='GetHeartbeat', **params):
+def api_call(endpoint='GetHeartbeat', **params):
 
     # Make sure user has logged in
     if 'user_id' not in globals():
@@ -201,11 +154,14 @@ def generic_call(endpoint='GetHeartbeat', **params):
     params['user_id'] = user_id
     params['return_format'] = '0'
 
+    # Use global variable to save response to module env for debugging
+    global response
+
     # Call API
     response = requests.get(url + endpoint, headers={'Cookie': cookie}, params=params)
 
     # Parse errors
-    error = parse_errors(response)
+    parse_errors(response)
 
     # Return refreshed cookie
     get_cookie(response)
@@ -215,7 +171,8 @@ def generic_call(endpoint='GetHeartbeat', **params):
 # endregion
 
 
-# region Internal module functions
+# region Internal module functions.
+# These are still user accessible but keeping as single file for simplicity
 def get_cookie(response):
     global cookie
     match = re.search("(?<=Cookie ).*?(?=\\s)", str(response.cookies))
@@ -233,10 +190,6 @@ def set_url(link):
     global url
     url = link
 
-def get_response(http_response):
-    global response
-    response = http_response
-
 def parse_errors(response):
     error_count = 0
     if response.status_code != 200:
@@ -249,10 +202,12 @@ def parse_errors(response):
         print(message_detail.group())
         error_count += 1
 
+    # Save error status to module env
+    global error
     if error_count > 0:
-        return True
+        error = True
     else:
-        return False
+        error = False
 
 def xml_to_df(xml_string):
     root = ET.fromstring(xml_string)
