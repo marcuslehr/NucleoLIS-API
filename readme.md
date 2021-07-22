@@ -2,12 +2,10 @@ This is a simple python module to interface with the [NucleoLIS](https://psyches
 
 The module provides the following functions: login(), get_all(), get_single(), set_status(), and the generic api_call() function. 
 
-To use the module, first call the login() function
+To use the module, first call the login() function. Be sure to include '/api/' at the end of your url, and the password should be stored in a plain text file.
 ```
 import LIS
 
-# Be sure to include '/api/' at the end of your url and 
-# the password should be stored in a plain text file.
 LIS.login(url="https://your.server.com/api/",
           username='user', pass_file='api_pass.txt')
 ```
@@ -39,7 +37,7 @@ response = LIS.api_call('N/GetPhysicianLocations', physician_code='123456')
 # To convert this response to a dataframe, we can call one of the 'internal' module functions
 df = LIS.xml_to_df(response.text)
 ```
-Additionally, there is the set_status() function, which updates `_StatusStep` fields. These fields correspond to the `_ObjectID` fields. For example, if you supply a `Specimen_ObjectID` the `Specimen_StatusStep` field will be updated. These are factor fields that will only accept values which have been predefined in the NucleoLIS software. Multiple IDs should be supplied in a list.
+Additionally, there is the set_status() function which updates `_StatusStep` fields. These fields correspond to the `_ObjectID` fields. For example, if you supply a `Specimen_ObjectID` the `Specimen_StatusStep` field will be updated. These are factor fields that will only accept values which have been predefined in the NucleoLIS software. Multiple IDs should be supplied in a list.
 ```
 # Update status for all cases for the patient selected above
 LIS.set_status(object_ids=filtered_cases.Case_ObjectID, status_advance='true')
