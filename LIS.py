@@ -150,7 +150,7 @@ def api_call(endpoint='GetHeartbeat', **params):
     if re.search('^N/', endpoint) is None:
         endpoint = re.sub('^', 'N/', endpoint)
 
-    # Coerce static param args
+    # Add or coerce static params
     params['user_id'] = user_id
     params['return_format'] = '0'
 
@@ -191,23 +191,23 @@ def set_url(link):
     url = link
 
 def parse_errors(response):
-    error_count = 0
+    # error_count = 0
     if response.status_code != 200:
         print('HTTP error: ' + str(response.status_code) + ': ' + response.reason)
-        error_count += 1
+        # error_count += 1
     if re.search("^<Error", response.text) is not None:
         error_message = re.findall("(?<=<Message>).*(?=</Message>)", response.text)
         message_detail = re.search("(?<=<MessageDetail>).*(?=</MessageDetail>)", response.text)
         print(error_message[0])
         print(message_detail.group())
-        error_count += 1
+        # error_count += 1
 
-    # Save error status to module env
-    global error
-    if error_count > 0:
-        error = True
-    else:
-        error = False
+    # # Save error status to module env
+    # global error
+    # if error_count > 0:
+        # error = True
+    # else:
+        # error = False
 
 def xml_to_df(xml_string):
     root = ET.fromstring(xml_string)
