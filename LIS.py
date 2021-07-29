@@ -221,10 +221,9 @@ def parse_errors(response):
         error_count += 1
 
     global error
+    error = False
     if error_count > 0:
         error = True
-    else:
-        error = False
 
 def xml_to_df(xml_string):
     root = ET.fromstring(xml_string)
