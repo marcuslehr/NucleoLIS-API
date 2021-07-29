@@ -74,6 +74,10 @@ def get_all(method=['cases', 'patients', 'specimens', 'tests', 'physicians'],
     # Call API
     response = api_call(uri, **params)
 
+    # Stop on error
+    if error:
+        return
+
     # Convert response to df
     return xml_to_df(response.text)
 
@@ -113,6 +117,10 @@ def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
     # Call API
     response = api_call(uri, **params)
 
+    # Stop on error
+    if error:
+        return
+
     # Convert response to df
     return xml_to_df(response.text)
 
@@ -129,6 +137,10 @@ def set_status(object_ids, status_set='', status_advance='false'):
     # Call API
     response = api_call('N/SetStatusSteps', **params)
 
+    # Stop on error
+    if error:
+        return
+
     # Convert response to df
     df = xml_to_df(response.text)
 
@@ -141,7 +153,7 @@ def api_call(endpoint='GetHeartbeat', **params):
 
     # Make sure user has logged in
     if 'user_id' not in globals():
-        return print('You have not logged in.')
+        return print('You are not logged in.')
 
     # Coerce endpoint formatting
     endpoint = re.sub('^/', '', endpoint)
@@ -191,23 +203,28 @@ def set_url(link):
     url = link
 
 def parse_errors(response):
-    # error_count = 0
+    error_count = 0
+
     if response.status_code != 200:
         print('HTTP error: ' + str(response.status_code) + ': ' + response.reason)
-        # error_count += 1
+        error_count += 1
+
+    if response.status_code == 401:
+        print('You are not logged in.')
+        error_count += 1
+
     if re.search("^<Error", response.text) is not None:
         error_message = re.findall("(?<=<Message>).*(?=</Message>)", response.text)
         message_detail = re.search("(?<=<MessageDetail>).*(?=</MessageDetail>)", response.text)
         print(error_message[0])
         print(message_detail.group())
-        # error_count += 1
+        error_count += 1
 
-    # # Save error status to module env
-    # global error
-    # if error_count > 0:
-        # error = True
-    # else:
-        # error = False
+    global error
+    if error_count > 0:
+        error = True
+    else:
+        error = False
 
 def xml_to_df(xml_string):
     root = ET.fromstring(xml_string)
