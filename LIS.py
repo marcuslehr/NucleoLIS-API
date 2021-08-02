@@ -153,6 +153,8 @@ def api_call(endpoint='GetHeartbeat', **params):
 
     # Make sure user has logged in
     if 'user_id' not in globals():
+        global error
+        error = True
         return print('You are not logged in.')
 
     # Coerce endpoint formatting
