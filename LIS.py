@@ -7,7 +7,7 @@ import pandas as pd
 # region External module functions
 def login(url, username, pass_file='api_pass.txt'):
     # Save url to module env
-    set_url(url)
+    url = set_url(url)
 
     # Retrieve password
     try:
@@ -203,6 +203,7 @@ def set_url(link):
             link = re.sub('$','/api/',link)
     global url
     url = link
+    return link
 
 def parse_errors(response):
     error_count = 0
