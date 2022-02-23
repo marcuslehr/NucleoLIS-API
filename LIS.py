@@ -129,7 +129,7 @@ def set_status(object_ids, status_set='', status_advance='false'):
     # Paste IDs
     if isinstance(object_ids, (list, set, pd.core.series.Series)):
         object_ids = '|'.join(object_ids)
-    elif isinstance(object_ids, str):
+    else:
         object_ids = int(object_ids)
 
     # Set get parameters
