@@ -36,7 +36,7 @@ def login(url, username, pass_file='api_pass.txt'):
         # Save cookie to module env
         get_cookie(response)
     else:
-        print('Login failed')
+        raise Exception('Login failed')
 
 
 def get_all(method=['cases', 'patients', 'specimens', 'tests', 'physicians'],
