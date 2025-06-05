@@ -16,10 +16,9 @@ def login(url, username, pass_file='api_pass.txt'):
     except FileNotFoundError:
         password = input('Enter your password: ')
 
+    # Call API
     # Use global variable to save response to module env for debugging
     global response
-
-    # Call API
     response = requests.post(url + "authenticate/logon",
                              headers={'Content-Type': 'application/x-www-form-urlencoded'},
                              data='username='+username+'&password='+password)
@@ -33,8 +32,9 @@ def login(url, username, pass_file='api_pass.txt'):
         global user_id
         user_id = re.findall("(?<=username=)\\d*?(?=&|$)", str(response.cookies))[0]
 
-        # Save cookie to module env
-        get_cookie(response)
+        # Save session cookie to module env
+        global cookie
+        cookie = response.cookies.get('session')
     else:
         raise Exception('Login failed')
 
@@ -153,11 +153,10 @@ def set_status(object_ids, status_set='', status_advance='false'):
 
 def api_call(endpoint='GetHeartbeat', **params):
 
-    # Make sure user has logged in
-    if 'user_id' not in globals():
-        global error
-        error = True
-        return print('You are not logged in.')
+    # This module should really be rewritten to use classes and assign self attributes
+    global response
+    global cookie
+    global error
 
     # Coerce endpoint formatting
     endpoint = re.sub('^/', '', endpoint)
@@ -166,21 +165,32 @@ def api_call(endpoint='GetHeartbeat', **params):
     if re.search('^N/', endpoint) is None:
         endpoint = re.sub('^', 'N/', endpoint)
 
+    # Make sure user has logged in
+    if 'user_id' not in globals():
+        error = True
+        raise Exception('User ID not present.')
+
+    if 'cookie' not in globals():
+        error = True
+        raise Exception('Session cookie not present.')
+
     # Add or coerce static params
+    if 'params' not in locals():
+        params = dict()
+
     params['user_id'] = user_id
     params['return_format'] = '0'
 
-    # Use global variable to save response to module env for debugging
-    global response
-
     # Call API
-    response = requests.get(url + endpoint, headers={'Cookie': cookie}, params=params)
+    # Use global variable to save response to module env for debugging
+    response = requests.get(url + endpoint, headers={'Cookie': 'session='+cookie}, params=params)
 
     # Parse errors
     parse_errors(response)
 
     # Return refreshed cookie
-    get_cookie(response)
+    if response.status_code==200:
+        cookie = response.cookies.get('session')
 
     return response
 
@@ -189,12 +199,6 @@ def api_call(endpoint='GetHeartbeat', **params):
 
 # region Internal module functions.
 # These are still user accessible but keeping as single file for simplicity
-def get_cookie(response):
-    global cookie
-    match = re.search("(?<=Cookie ).*?(?=\\s)", str(response.cookies))
-    if match is not None:
-        cookie = match.group()
-
 def set_url(link):
     if re.search('/api/$', link) is None:
         if re.search('/api$',link) is not None:
