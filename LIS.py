@@ -3,254 +3,230 @@ import re
 import xml.etree.ElementTree as ET
 import pandas as pd
 
+class Client:
+    def __init__(self, url=None):
+        self.url = None
+        self.cookie = None
+        self.user_id = None
+        self.response = None
+        if url:
+            self.set_url(url)
 
-# region External module functions
-def login(url, username, pass_file='api_pass.txt'):
-    # Save url to module env
-    url = set_url(url)
+    def login(self, username, pass_file='api_pass.txt', url=None):
 
-    # Retrieve password
-    try:
-        with open(pass_file, 'r') as f:
-            password = f.read()
-    except FileNotFoundError:
-        password = input('Enter your password: ')
+        # Validate/fetch parameters
+        if url is not None:
+            self.set_url(url)
+        elif self.url is None:
+            raise ValueError("API URL must be set before logging in.")
 
-    # Call API
-    # Use global variable to save response to module env for debugging
-    global response
-    response = requests.post(url + "authenticate/logon",
-                             headers={'Content-Type': 'application/x-www-form-urlencoded'},
-                             data='username='+username+'&password='+password)
+        try:
+            with open(pass_file, 'r') as f:
+                password = f.read()
+        except FileNotFoundError:
+            password = input('Enter your password: ')
 
-    # Check response
-    root = ET.fromstring(response.text)
-    if root.text == 'Success':
-        print('Login success')
+        # Call API to log in
+        self.response = requests.post(
+            self.url + "authenticate/logon",
+            headers={'Content-Type': 'application/x-www-form-urlencoded'},
+            data=f'username={username}&password={password}'
+        )
 
-        # Save user ID to module env
-        global user_id
-        user_id = re.findall("(?<=username=)\\d*?(?=&|$)", str(response.cookies))[0]
-
-        # Save session cookie to module env
-        global cookie
-        cookie = response.cookies.get('session')
-    else:
-        raise Exception('Login failed')
-
-
-def get_all(method=['cases', 'patients', 'specimens', 'tests', 'physicians'],
-            filter_expression="", activesOnly='false',
-            last_name='*', first_name='*',
-            case_number='*', order_date_from='*', order_date_to='*',
-            submitting_physicians='*', submitting_groups='*',
-            received_date_from='*', received_date_to='*',
-            specimen_status_steps='*', specimen_sources='*',
-            order_status_steps='', order_codes=''):
-
-    # Set uri for desired method
-    methods = {'heartbeat': 'N/GetHeartbeat',
-               'patients': 'N/GetPatients',
-               'cases': 'N/GetCases',
-               'specimens': 'N/GetSpecimens',
-               'tests': 'N/GetTestOrders',
-               'physicians': 'N/GetPhysicians'}
-    if type(method) is list:
-        method = method[0]
-    uri = methods.get(method)
-    if type(uri) is None:
-        print('Invalid method specified.')
-        return
-
-    # Set get parameters
-    params = dict(filter_expression=filter_expression, activesOnly=activesOnly,
-                  last_name=last_name, first_name=first_name,
-                  case_number=case_number, order_date_from=order_date_from, order_date_to=order_date_to,
-                  submitting_physicians=submitting_physicians, submitting_groups=submitting_groups,
-                  received_date_from=received_date_from, received_date_to=received_date_to,
-                  specimen_status_steps=specimen_status_steps, specimen_sources=specimen_sources,
-                  order_status_steps=order_status_steps, order_codes=order_codes)
-
-    # Call API
-    response = api_call(uri, **params)
-
-    # Stop on error
-    if error:
-        return
-
-    # Convert response to df
-    return xml_to_df(response.text)
-
-
-def get_single(method=['case', 'patient', 'specimen', 'test', 'physician'],
-               patient_id=None, case_number=None, specimen_id=None,
-               test_order_id=None, physician_code=None):
-
-    # Set uri for desired method
-    methods = {'patient': 'N/GetPatient',
-               'case': 'N/GetCase',
-               'specimen': 'N/GetSpecimen',
-               'test': 'N/GetTestOrder',
-               'physician': 'N/GetPhysician'}
-    if type(method) is list:
-        method = method[0]
-    uri = methods.get(method)
-    if type(uri) is None:
-        print('Invalid method specified.')
-        return
-
-    # Check that appropriate ID argument is supplied for method call
-    IDs = {'patient': patient_id,
-           'case': case_number,
-           'specimen': specimen_id,
-           'test': test_order_id,
-           'physician': physician_code}
-    ID = IDs.get(method)
-    if type(ID) is None:
-        print('You must supply the appropriate ID for the selected method')
-        return
-
-    # Set get parameters
-    params = dict(patient_id=patient_id, case_number=case_number, specimen_id=specimen_id,
-                  test_order_id=test_order_id, physician_code=physician_code)
-
-    # Call API
-    response = api_call(uri, **params)
-
-    # Stop on error
-    if error:
-        return
-
-    # Convert response to df
-    return xml_to_df(response.text)
-
-def set_status(object_ids, status_set='', status_advance='false'):
-
-    # Paste IDs
-    if isinstance(object_ids, (list, set, pd.core.series.Series)):
-        object_ids = '|'.join(object_ids)
-    else:
-        object_ids = int(object_ids)
-
-    # Set get parameters
-    params = dict(object_ids=object_ids, status_set=status_set,
-                  status_advance=status_advance)
-
-    # Call API
-    response = api_call('N/SetStatusSteps', **params)
-
-    # Stop on error
-    if error:
-        return
-
-    # Convert response to df
-    df = xml_to_df(response.text)
-
-    if df is None:
-        print('No updates performed. Invalid object ID')
-
-    return df
-
-def api_call(endpoint='GetHeartbeat', **params):
-
-    # This module should really be rewritten to use classes and assign self attributes
-    global response
-    global cookie
-    global error
-
-    # Coerce endpoint formatting
-    endpoint = re.sub('^/', '', endpoint)
-    if re.search('^api/', endpoint) is not None:
-        endpoint = re.sub('^api/', '', endpoint)
-    if re.search('^N/', endpoint) is None:
-        endpoint = re.sub('^', 'N/', endpoint)
-
-    # Make sure user has logged in
-    if 'user_id' not in globals():
-        error = True
-        raise Exception('User ID not present.')
-
-    if 'cookie' not in globals():
-        error = True
-        raise Exception('Session cookie not present.')
-
-    # Add or coerce static params
-    if 'params' not in locals():
-        params = dict()
-
-    params['user_id'] = user_id
-    params['return_format'] = '0'
-
-    # Call API
-    # Use global variable to save response to module env for debugging
-    response = requests.get(url + endpoint, headers={'Cookie': 'session='+cookie}, params=params)
-
-    # Parse errors
-    parse_errors(response)
-
-    # Return refreshed cookie
-    if response.status_code==200:
-        cookie = response.cookies.get('session')
-
-    return response
-
-# endregion
-
-
-# region Internal module functions.
-# These are still user accessible but keeping as single file for simplicity
-def set_url(link):
-    if re.search('/api/$', link) is None:
-        if re.search('/api$',link) is not None:
-            link = re.sub('/api$','/api/',link)
-        elif re.search('/$',link) is not None:
-            link = re.sub('/$','/api/',link)
+        # Check response and extract user ID and session cookie
+        root = ET.fromstring(self.response.text)
+        if root.text == 'Success':
+            print('Login success')
+            self.cookie = self.response.cookies.get('session')
+            self.user_id = re.findall("(?<=username=)\\d*?(?=&|$)", str(self.cookie))[0] # It's fine to leave this in the cookie, but it must be extracted and supplied as a param as well
         else:
-            link = re.sub('$','/api/',link)
-    global url
-    url = link
-    return link
+            raise Exception('Login failed. Please check your username and password.')
 
-def parse_errors(response):
-    error_count = 0
+    def api_call(self, endpoint='GetHeartbeat', **params):
 
-    if response.status_code != 200:
-        print('HTTP error: ' + str(response.status_code) + ': ' + response.reason)
-        error_count += 1
+        # Parse endpoint
+        endpoint = re.sub('^/', '', endpoint)
+        if re.search('^api/', endpoint) is not None:
+            endpoint = re.sub('^api/', '', endpoint)
+        if re.search('^N/', endpoint) is None:
+            endpoint = re.sub('^', 'N/', endpoint)
 
-    if response.status_code == 401:
-        print('You are not logged in.')
-        error_count += 1
+        # Add or coerce static params
+        if 'params' not in locals():
+            params = dict()
+        params['user_id'] = self.user_id
+        params['return_format'] = '0'
 
-    if re.search("^<Error", response.text) is not None:
-        error_message = re.findall("(?<=<Message>).*(?=</Message>)", response.text)
-        message_detail = re.search("(?<=<MessageDetail>).*(?=</MessageDetail>)", response.text)
-        print(error_message[0])
-        print(message_detail.group())
-        error_count += 1
+        # Call API
+        response = requests.get(
+            self.url + endpoint,
+            headers={'Cookie': f'session={self.cookie}'},
+            params=params
+        )
 
-    global error
-    error = False
-    if error_count > 0:
-        error = True
+        # Log response for external debugging
+        self.response = response
 
-def xml_to_df(xml_string):
-    root = ET.fromstring(xml_string)
+        # Update cookie
+        new_cookie = response.cookies.get('session')
+        if new_cookie:
+            self.cookie = new_cookie
 
-    if root.text == 'No data':
-        print('No data returned')
-        return
+        # Parse errors
+        if response.status_code == 401:
+            if not self.cookie:
+                raise Exception('Session cookie is missing. Please call login() first.')
+            else:
+                raise Exception('Invalid or expired session. Please login again.')
 
-    rows = list()
-    for row in root:
-        row_dict = dict()
-        for column in row:
-            row_dict[column.tag] = column.text
-        rows.append(row_dict)
-    df = pd.DataFrame(rows)
+        if response.status_code == 404:
+            raise Exception(f'Endpoint not found: {response.url}'
+                            'Note that all parameters must be supplied for any given endpoint.')
 
-    if df.empty:
-        print('No data returned')
-    return df
+        # Capture API specific errors
+        if re.search("^<ErrorResponse", response.text) is not None:
+            message = re.findall("(?<=<Message>).*(?=</Message>)", response.text)
+            message = message[0] if len(message) > 0 else ''
 
-# endregion
+            message_detail = re.search("(?<=<MessageDetail>).*(?=</MessageDetail>)", response.text)
+            message_detail = message_detail.group() if message_detail is not None else ''
+
+            raise Exception(
+                f'''HTTP code {str(response.status_code)}: {response.reason}
+                Server messages-
+                {message}
+                {message_detail}'''
+            )
+
+        return response
+
+    def get_single(self, method=['case', 'patient', 'specimen', 'test', 'physician'],
+                   case_number=None, patient_id=None, specimen_id=None,
+                   test_order_id=None, physician_code=None):
+
+        # Validate method input
+        methods = {
+            'patient': 'N/GetPatient',
+            'case': 'N/GetCase',
+            'specimen': 'N/GetSpecimen',
+            'test': 'N/GetTestOrder',
+            'physician': 'N/GetPhysician'
+        }
+        if isinstance(method, list):
+            method = method[0]
+        endpoint = methods.get(method)
+        if endpoint is None:
+            raise Exception('Invalid method specified.')
+
+        # Ensure the correct param is provided for method
+        id_params = {
+            'patient': patient_id,
+            'case': case_number,
+            'specimen': specimen_id,
+            'test': test_order_id,
+            'physician': physician_code
+        }
+        id_value = id_params[method]
+        if id_value is None:
+            raise Exception(f'You must supply the appropriate ID for the selected method ({method})')
+
+        # Set get parameters. Extra params are ignored.
+        params = dict(patient_id=patient_id, case_number=case_number, specimen_id=specimen_id,
+                      test_order_id=test_order_id, physician_code=physician_code)
+
+        response = self.api_call(endpoint, **params)
+
+        return self.xml_to_df(response.text)
+
+    def get_all(self, method=['cases', 'patients', 'specimens', 'tests', 'physicians'],
+                filter_expression="", activesOnly='false',
+                last_name='*', first_name='*',
+                case_number='*', order_date_from='*', order_date_to='*',
+                submitting_physicians='*', submitting_groups='*',
+                received_date_from='*', received_date_to='*',
+                specimen_status_steps='*', specimen_sources='*',
+                order_status_steps='', order_codes=''
+                ):
+
+        # Validate method input
+        methods = {
+            'cases': 'N/GetCases',
+            'patients': 'N/GetPatients',
+            'specimens': 'N/GetSpecimens',
+            'tests': 'N/GetTestOrders',
+            'physicians': 'N/GetPhysicians'
+        }
+        if isinstance(method, list):
+            method = method[0]
+        endpoint = methods.get(method)
+        if endpoint is None:
+            raise Exception('Invalid method specified.')
+
+        # Set get parameters
+        params = dict(filter_expression=filter_expression, activesOnly=activesOnly,
+                      last_name=last_name, first_name=first_name,
+                      case_number=case_number, order_date_from=order_date_from, order_date_to=order_date_to,
+                      submitting_physicians=submitting_physicians, submitting_groups=submitting_groups,
+                      received_date_from=received_date_from, received_date_to=received_date_to,
+                      specimen_status_steps=specimen_status_steps, specimen_sources=specimen_sources,
+                      order_status_steps=order_status_steps, order_codes=order_codes)
+
+        # Call API
+        response = self.api_call(endpoint, **params)
+
+        # This doesn't seem to be true? Returns empty
+        # # API will return None if no results are found
+        # if response is None:
+        #     return None
+
+        return self.xml_to_df(response.text)
+
+    def set_status(self, object_ids, status_set='', status_advance='false'):
+
+        # Accepts a single id or iterable of ids
+        if isinstance(object_ids, (list, set, pd.Series)):
+            object_ids = '|'.join(str(i) for i in object_ids)
+        else:
+            object_ids = int(object_ids) # When called from R, all numbers are fed as floats
+
+        params = dict(object_ids=object_ids,
+                      status_set=status_set,
+                      status_advance=status_advance)
+
+        response = self.api_call('N/SetStatusSteps', **params)
+
+        update_details = self.xml_to_df(response.text)
+        if update_details is None or update_details.empty:
+            raise Exception('Invalid object IDs. No updates performed.')
+
+        return update_details
+
+    #region Internal helper functions
+    def set_url(self, link):
+        # Normalize API URL ending
+        if not link.endswith('/api/'):
+            if link.endswith('/api'):
+                link = link + '/'
+            elif link.endswith('/'):
+                link = link + 'api/'
+            else:
+                link = link + '/api/'
+        self.url = link
+        return self.url
+
+    def xml_to_df(self, xml_string):
+        root = ET.fromstring(xml_string)
+        if root.text == 'No data':
+            print('No data returned')
+            return
+        rows = []
+        for row in root:
+            row_dict = {column.tag: column.text for column in row}
+            rows.append(row_dict)
+        df = pd.DataFrame(rows)
+        if df.empty:
+            print('No data returned')
+            # maybe return None here?
+        return df
+
+    #endregion

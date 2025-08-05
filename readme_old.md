@@ -2,12 +2,11 @@ This is a simple python module to interface with the [NucleoLIS](https://psyches
 
 The module provides the following functions: login(), get_all(), get_single(), set_status(), and the generic api_call() function. 
 
-To start, you'll need to import the module and instantiate the module class. You can then call the login() function with your credentials. The password is expected to be stored in a plain text file, otherwise you will be prompted to enter your password.
+To use the module, first call the login() function. Be sure to include '/api/' at the end of your url, and the password should be stored in a plain text file.
 ```
 import LIS
 
-lis = LIS.Client()
-lis.login(url="https://your.server.com/api/",
+LIS.login(url="https://your.server.com/api/",
           username='user', pass_file='api_pass.txt')
 ```
 Your login will be valid for 15 minutes. The 15 minute window will be reset with each API call, however if you do not call the API for 15 minutes, you will need to login again.
